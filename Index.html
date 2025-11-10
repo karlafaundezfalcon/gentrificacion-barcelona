@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Scrollytelling: Gentrificación en Barcelona</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+    <script src="https://unpkg.com/scrollama"></script>
+    <style>
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: sans-serif; 
+            overflow-x: hidden; 
+            position: relative;
+        } 
+        
+        /* --- TÍTULO FIJO (HEADER) --- */
+        #header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 80px; 
+            background-color: #333; 
+            color: white;
+            z-index: 20;
+            padding: 0 15px; 
+            display: flex;
+            align-items: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            text-align: left;
+        }
+        #header h1 { 
+            margin: 1px; 
+            font-size: 1rem; 
+            line-height: 1.2;
+            word-break: break-word; 
+        }
+
+        /* --- MAPA --- */
+        #map {
+            position: fixed;
+            top: 80px;
+            left: 0;
+            width: 100%;
+            height: calc(100vh - 80px);
+            z-index: 10;
+        }
+
+        /* --- CONTENEDOR DE HISTORIA --- */
+        #story-scroll-container {
+            position: relative;
+            z-index: 15;
+            padding-top: calc(100vh - 80px);
+            padding-bottom: calc(100vh - 80px);
+            pointer-events: none; 
+        }
+
+        /* --- CUADROS DE NARRATIVA (STEPS) --- */
+        .step {
+            position: relative;
+            width: 90%;
+            max-width: 300px; 
+            min-height: 200px;
+            margin: 30vh auto;
+            padding: 15px; 
+            background-color: rgba(255, 255, 255, 0.95);
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4); 
+            opacity: 0.1;
+            pointer-events: none; 
+            transition: opacity 0.5s, transform 0.5s;
+            transform: translateY(20px);
+            text-align: justify;
+        }
+        
+        .step.is-active {
+            opacity: 1;
+            pointer-events: auto; 
+            transform: translateY(0);
+        }
+
+        .step h2 {
+            font-size: 1.4rem; 
+            color: #333;
+            margin-bottom: 15px;
+            text-align: left; 
+        }
+
+        .step p {
+            font-size: 1rem; 
+            line-height: 1.6;
+            color: #555;
+        }
+
+        /* --- BOTÓN Y VÍDEO --- */
+        .video-button {
+            padding: 10px 15px;
+            font-size: 0.9rem;
+            background-color: #CD1818; 
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 15px;
+            display: inline-block;
+            width: 100%; 
+            box-sizing: border-box;
+        }
+        .video-button:hover {
+            background-color: #a31414;
+        }
+        #tiktok-embed-container {
+            margin-top: 20px;
+            text-align: center;
+            overflow: hidden;
+        }
+        /* Ajustar el embed de TikTok */
+        #tiktok-embed-container blockquote {
+            max-width: 100% !important;
+            min-width: unset !important;
+            margin: 20px auto 0 !important;
+        }
+
+        /* --- LEYENDA --- */
+        #legend {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            z-index: 20;
+            width: calc(100% - 30px); 
+            max-width: 350px;
+            font-size: 0.9rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+        }
+
+        .color-box {
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+            border: 1px solid #333;
+        }
+
+        .mapboxgl-popup-content p {
+            font-size: 0.9rem; 
+            margin: 3px 0;
+            line-height: 1.4;
+        }
+
+        /* --- INDICADOR DE SCROLL --- */
+        .caja-scroll {
+            background-color: #CD1818;
+            color: white;      
+            display: block;
+            position: fixed; 
+            top: 100px;     
+            padding: 5px; 
+            text-align: center;    
+            border-radius: 5px;    
+            font-family: Arial, sans-serif; 
+            width: 150px;
+            margin-left: auto;
+            margin-right: auto; 
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+
+        }
+        
+        /* ========================================================================= */
+        /* MEDIA QUERY para Pantallas Medianas/Grandes (Tablets y Desktops) */
+        /* ========================================================================= */
+        @media (min-width: 768px) {
+            #header { 
+                padding: 0 50px; 
+                height: 70px; 
+            }
+            #header h1 { 
+                font-size: 1.5rem; 
+            }
+            #map {
+                top: 70px;
+                height: calc(100vh - 70px);
+            }
+            #story-scroll-container {
+                padding-top: calc(100vh - 70px);
+                padding-bottom: calc(100vh - 70px);
+            }
+            
+            .step {
+                width: 350px;
+                max-width: 450px; 
+                min-height: 300px;
+                margin: 50vh 80px 50vh auto; 
+                padding: 30px;
+            }
+
+            .step h2 { 
+                font-size: 1.2rem; 
+            }
+            .step p { 
+                font-size: 1rem; 
+            }
+
+            .video-button {
+                width: auto; 
+                font-size: 1rem;
+            }
+
+            #legend {
+                bottom: 30px;
+                left: 30px;
+                transform: translateX(0); 
+                padding: 15px;
+                width: auto;
+                max-width: 350px;
+            }
+
+            .legend-item { font-size: 0.9rem; }
+            .color-box { width: 20px; height: 20px; margin-right: 8px; }
+
+            .caja-scroll {
+                width: 170px; 
+                top: 100px;
+                margin-right:auto;
+                margin-left: auto;
+                padding: 5px;
+                font-size: 1rem;
+                margin-bottom: auto;
+                margin-top:auto;
+                z-index: 1000;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <h1>🏘️ La Gentrificación en Barcelona: El Mapa de la Transformación de la Identidad de sus Barrios</h1>
+</div>
+
+<div id="map"></div>
+
+<div id="story-scroll-container">
+    <div class="caja-scroll">
+        <p>🔽 Haz scroll para avanzar</p>
+    </div>
+
+    <div class="step" data-chapter="1">
+        <h2>¿Qué es la gentrificación?</h2>
+        <p>Se conoce como <strong>gentrificación</strong> al proceso por el cual un barrio atrae a nuevos residentes con un mayor poder adquisitivo, provocando la subida de los alquileres y la expulsión de sus habitantes originales.</p>
+        <p>En este storymap analizaremos los barrios de Barcelona que han sufrido más este fenómeno y cuáles han sido sus causas.</p>
+        <p>Para entender el efecto de la gentrificación sobre un barrio, mira el siguiente video del caso de Nou Barris.</p>
+        <button id="show-video-btn" class="video-button">🎥 La Gentrificación amenaza a Nou Barris</button>
+
+        <div id="tiktok-embed-container" style="display:none;">
+            <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@eltiktokdanito/video/7569240442261245206" data-video-id="7569240442261245206" style="max-width: 605px;min-width: 325px; margin: 20px auto 0;"> 
+                <section> 
+                    <a target="_blank" title="@eltiktokdanito" href="https://www.tiktok.com/@eltiktokdanito?refer=embed">@eltiktokdanito</a> La gentrificació ha arribat a Nou Barris. Encara no ho notem a cada carrer, però comença a haver-hi senyals. Nou Barris no és només un territori, és una comunitat. Si volem que ho continuï sent, cal aturar aquestes dinàmiques d'expulsió i garantir habitatge assequible per a totes.
+                </section> 
+            </blockquote> 
+            <script async src="https://www.tiktok.com/embed.js"></script>
+        </div>
+    </div>
+
+    <div class="step" data-chapter="2">
+        <h2>Eixample (IG=68,88)</h2>
+        <p>El Eixample se ha convertido en el epicentro de la gentrificación de Barcelona por tres fuerzas principales. Primero, el "Efecto Monopoly" donde fondos compran edificios enteros, expulsando inquilinos y transformando el barrio en un portfolio de lujo. Segundo, el turismo masivo y el comercio exclusivo disparan los precios, haciendo inaccesible la vida diaria para los residentes de siempre. Finalmente, la mejora urbana de las Superilles, aunque estéticamente atractiva, revaloriza tanto la zona que acelera la expulsión, ya que los vecinos no pueden costearse la subida del alquiler. El resultado es un Eixample más bonito, pero desprovisto de su alma vecinal.</p>
+    </div>
+
+    <div class="step" data-chapter="3">
+        <h2>El Gòtic (IG=54,75)</h2>
+        <p>El Barri Gòtic ha sufrido una gentrificación severa impulsada por la turistificación extrema. La principal fuerza es la saturación del espacio público, con una desproporcionada cantidad de turistas y una intensa ocupación por terrazas y ocio nocturno que hace la vida cotidiana insostenible para los vecinos. Las reformas se han centrado en convertir los edificios históricos en activos de lujo o alojamientos temporales, tratando el barrio como un parque temático medieval. Este proceso ha llevado a la pérdida de la funcionalidad residencial y la intimidad. En el Gòtic, el residente no solo se va por el precio, sino porque el barrio ha dejado de pertenecerle, convirtiéndose en un mero escenario. </strong>.</p>
+    </div>
+
+    <div class="step" data-chapter="4">
+        <h2>La Vila de Gràcia (IG=46,51)</h2>
+        <p>Gràcia se gentrifica por ser el barrio trendy o "pueblo" deseado por la clase media-alta, generando una alta presión de demanda sobre un stock inmobiliario limitado. Su transformación no es por turismo masivo, sino por una "boutiquización" silenciosa del comercio: las tiendas esenciales son reemplazadas por negocios de diseño y gastronomía de alto coste. Este proceso expulsa a la población original que no puede pagar la vida en el barrio de moda. A pesar de contar con un tejido vecinal muy fuerte que resiste el cambio, Gràcia mantiene su estética de pueblo, pero pierde a la gente que le dio su carácter.</p>
+    </div>
+
+    <div class="step" data-chapter="5">
+        <h2>El Poblenou (IG=45.27)</h2>
+        <p>El Poblenou es un caso de gentrificación post-industrial impulsada por el plan urbanístico 22@, que transformó el antiguo barrio obrero en el polo tecnológico de Barcelona. La afluencia de empresas tecnológicas y profesionales de alta cualificación ha disparado la demanda y el coste de vida. Este proceso ha generado una dualidad entre el Poblenou antiguo y la nueva zona de lofts y oficinas, donde el precio del suelo es inalcanzable. El comercio tradicional es reemplazado por servicios cool y startups. El resultado es un desplazamiento lento, donde la especulación inmobiliaria planificada está convirtiendo al barrio en una "ciudad inteligente" elitista.</p>
+    </div>
+
+    <div class="step" data-chapter="6">
+        <h2>Barcelona: Desafíos futuros</h2>
+        <p>La gentrificación en Barcelona exige políticas públicas diferenciadas. El desafío pasa por proteger al residente frente a la especulación. Esto requiere un control firme de los grandes fondos de inversión mediante herramientas fiscales que penalicen la compra masiva y el vaciado (Eixample). Es crucial blindar los barrios históricos limitando la sobresaturación turística (Gòtic) y el comercio de ocio. Las mejoras urbanas (Superilles) deben venir acompañadas de cláusulas anti-expulsión para evitar que la mejora del espacio público se traduzca en encarecimiento. Finalmente, urge cumplir las cuotas de VPO en desarrollos como el 22@ y proteger el comercio esencial (Gràcia) para que la ciudad no pierda su alma vecinal.</p>
+    </div>
+        <div class="step" data-chapter="7">
+        <h2>¿Cómo Afecta a tu Barrio?</h2>
+        <p>¿Estás siendo parte del cambio o de la expulsión? Haz clic en el mapa para revisar el Índice de Gentrificación (IG) de tu barrio.</p>
+    </div>
+</div>
+
+<div id="legend">
+    <p><strong>ÍNDICE DE GENTRIFICACIÓN (IG)</strong></p>
+    <div style="height: 20px; width: 100%; border: 1px solid #333; margin-bottom: 5px; background: linear-gradient(to right, #e7dfdf, #cd1818);"></div>
+    <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
+        <span>Poco gentrificado</span>
+        <span>Muy gentrificado</span>
+    </div>
+</div>
+
+<script>
+    mapboxgl.accessToken = 'pk.eyJ1Ijoia2FybGE4NyIsImEiOiJjbWhveWRkanMwMG8zMnNyNG1xNTQ2a2oxIn0.gjhYrxXfYOs8hI0apkt8vQ';
+
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/karla87/cmhdcbgsy002x01r200s95y9w', 
+        center: [2.1734, 41.3851],
+        zoom: 11,
+        projection: 'mercator',
+        scrollZoom: false,
+        dragPan: false
+    });
+
+    const chapters = {
+        '1': { center: [2.1734, 41.3851], zoom: 11, bearing: 0, pitch: 0 },
+        '2': { center: [2.1696, 41.3949], zoom: 13.5, bearing: 0, pitch: 20 },
+        '3': { center: [2.1783, 41.3802], zoom: 14, bearing: -10, pitch: 30 },
+        '4': { center: [2.1548, 41.3996], zoom: 14, bearing: 15, pitch: 25 },
+        '5': { center: [2.2030, 41.4000], zoom: 13.5, bearing: 5, pitch: 15 },
+        '6': { center: [2.1734, 41.3851], zoom: 11, bearing: 0, pitch: 0 }
+    };
+
+    let popup = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: true
+    });
+
+    map.on('load', () => {
+        const LAYER_ID_INTERACT = 'ig-barcelona'; 
+
+        map.on('click', LAYER_ID_INTERACT, (e) => {
+            if (!e.features.length) return;
+
+            const properties = e.features[0].properties;
+            const coordinates = e.lngLat;
+            const igValue = (properties.IG * 100).toFixed(2);
+
+            const htmlContent = `
+                <div>
+                    <p><strong>${properties.NOM} - Barcelona</strong></p>
+                    <hr style="margin: 5px 0;">
+                    <p>Índice de Gentrificación:</p>
+                    <p><strong>${igValue}%</strong></p>
+                </div>
+            `;
+
+            popup.setLngLat(coordinates).setHTML(htmlContent).addTo(map);
+        });
+
+        map.on('mouseenter', LAYER_ID_INTERACT, () => map.getCanvas().style.cursor = 'pointer');
+        map.on('mouseleave', LAYER_ID_INTERACT, () => map.getCanvas().style.cursor = '');
+
+        const scroller = scrollama();
+
+        function handleStepEnter(response) {
+            const chapterID = response.element.dataset.chapter;
+            const chapter = chapters[chapterID];
+
+            map.flyTo({ ...chapter, duration: 1800, essential: true });
+
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('is-active'));
+            response.element.classList.add('is-active');
+
+            // Lógica del video/botón
+            const videoContainer = document.getElementById('tiktok-embed-container');
+            const videoButton = document.getElementById('show-video-btn');
+
+            if (chapterID === '1') {
+                 if (videoContainer.style.display !== 'block') {
+                    videoContainer.style.display = 'none';
+                    videoButton.style.display = 'inline-block';
+                 }
+            } else {
+                videoContainer.style.display = 'none';
+                videoButton.style.display = 'inline-block';
+            }
+        }
+
+        scroller
+            .setup({
+                step: '.step',
+                offset: 0.5,
+                scrollContainer: '#story-scroll-container'
+            })
+            .onStepEnter(handleStepEnter);
+
+        map.flyTo(chapters['1']);
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const videoButton = document.getElementById('show-video-btn');
+        const videoContainer = document.getElementById('tiktok-embed-container');
+        if (videoButton && videoContainer) {
+            videoButton.addEventListener('click', () => {
+                videoContainer.style.display = 'block';
+                videoButton.style.display = 'none';
+            });
+        }
+    });
+
+    let scroller;
+    map.on('load', () => {
+        scroller = scrollama(); 
+    });
+
+    window.addEventListener('resize', () => {
+        if (typeof scroller !== 'undefined') scroller.resize();
+    });
+</script>
+
+</body>
+</html>
